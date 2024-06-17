@@ -1,23 +1,23 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.13;
+pragma solidity 0.8.20;
 
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {Ownable2Step, Ownable} from "@openzeppelin/contracts/access/Ownable2Step.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeMath} from "./libraries/SafeMath.sol";
 import {IUniRouter} from "./interfaces/IUniRouter.sol";
 import {IUniFactory} from "./interfaces/IUniFactory.sol";
 
-contract WrappedTradeAI is Ownable, IERC20 {
+contract Navaix is Ownable2Step, IERC20 {
     using SafeMath for uint256;
 
-    uint256 _totalSupply = 21000000 * 10 ** _decimals;
+    uint256 _totalSupply = 100_000_000 * 10 ** _decimals;
     address WETH;
     address constant DEAD = 0x000000000000000000000000000000000000dEaD;
     address constant ZERO = 0x0000000000000000000000000000000000000000;
 
     // Token info
-    string constant _name = "Wrapped Trade AI";
-    string constant _symbol = "wTAI";
+    string constant _name = "Navaix";
+    string constant _symbol = "NVX";
     uint8 constant _decimals = 18;
 
     uint256 setRatio = 30;
@@ -38,11 +38,11 @@ contract WrappedTradeAI is Ownable, IERC20 {
     uint256 public totalFee = liquidityFee + teamFee + holderFee;
     uint256 public feeDenominator = 1000;
 
-    IUniRouter public router = IUniRouter(0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D);
+    IUniRouter public router;
 
     address public autoLiquidityReceiver;
-    address public teamFeeReceiver = 0x34387FCfc571C928B9C322CF59d8a0EDcBe8118A;
-    address public holderFeeReceiver = 0x620b70964eb92990600aD3082253D0276CD57138;
+    address public teamFeeReceiver;
+    address public holderFeeReceiver;
 
     address public pair;
     bool public swapEnabled = true;
@@ -62,11 +62,15 @@ contract WrappedTradeAI is Ownable, IERC20 {
     event UpdateMaxWallet(uint256 maxWallet);
     event UpdateSwapBackSetting(uint256 Amount, bool Enabled);
 
-    constructor() {
+    constructor(address _router, address _feeReceiver) Ownable(msg.sender) {
+        router = IUniRouter(_router);
+        
         WETH = router.WETH();
         _allowances[address(this)][address(router)] = type(uint256).max;
 
         autoLiquidityReceiver = msg.sender;
+        teamFeeReceiver = _feeReceiver;
+        holderFeeReceiver = _feeReceiver;
 
         isExemptFromFees[msg.sender] = true;
         isNotABot[msg.sender] = true;
