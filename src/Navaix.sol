@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.20;
 
-import {Ownable2Step, Ownable} from "@openzeppelin/contracts/access/Ownable2Step.sol";
+import {Ownable} from "./Ownable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeMath} from "./libraries/SafeMath.sol";
 import {IUniRouter} from "./interfaces/IUniRouter.sol";
 import {IUniFactory} from "./interfaces/IUniFactory.sol";
 
-contract Navaix is Ownable2Step, IERC20 {
+contract Navaix is Ownable, IERC20 {
     using SafeMath for uint256;
 
     uint256 _totalSupply = 33_000_000 * 10 ** _decimals;
@@ -30,19 +30,19 @@ contract Navaix is Ownable2Step, IERC20 {
 
     uint256 public teamFee = 400; // 2%
     uint256 public holderFee = 600; // 3%
-    uint256 public sellPercent = 200; // 20% for start listing
-    uint256 public buyPercent = 200; // 20% for start listing
+    uint256 public sellPercent = 400; 
+    uint256 public buyPercent = 400;
     uint256 public liquidityFee = 0;
 
     uint256 public transferPercent = 0;
     uint256 public totalFee = liquidityFee + teamFee + holderFee;
     uint256 public feeDenominator = 1000;
 
-    IUniRouter public router;
+    IUniRouter public router = IUniRouter(0x7a250d5630B4cF539739dF2C5dAcb4c659F2488D);
 
     address public autoLiquidityReceiver;
-    address public teamFeeReceiver;
-    address public holderFeeReceiver;
+    address public teamFeeReceiver = 0xe3CFF973E55F7090381C924dcfDE20D82D73082A;
+    address public holderFeeReceiver = 0xe3CFF973E55F7090381C924dcfDE20D82D73082A;
 
     address public pair;
     bool public swapEnabled = true;
@@ -62,15 +62,11 @@ contract Navaix is Ownable2Step, IERC20 {
     event UpdateMaxWallet(uint256 maxWallet);
     event UpdateSwapBackSetting(uint256 Amount, bool Enabled);
 
-    constructor(address _router, address _feeReceiver) Ownable(msg.sender) {
-        router = IUniRouter(_router);
-        
+    constructor () {
         WETH = router.WETH();
         _allowances[address(this)][address(router)] = type(uint256).max;
 
         autoLiquidityReceiver = msg.sender;
-        teamFeeReceiver = _feeReceiver;
-        holderFeeReceiver = _feeReceiver;
 
         isExemptFromFees[msg.sender] = true;
         isNotABot[msg.sender] = true;
@@ -81,33 +77,13 @@ contract Navaix is Ownable2Step, IERC20 {
 
     receive() external payable {}
 
-    function totalSupply() external view override returns (uint256) {
-        return _totalSupply;
-    }
-
-    function decimals() external pure returns (uint8) {
-        return _decimals;
-    }
-
-    function symbol() external pure returns (string memory) {
-        return _symbol;
-    }
-
-    function name() external pure returns (string memory) {
-        return _name;
-    }
-
-    function getOwner() external view returns (address) {
-        return owner();
-    }
-
-    function balanceOf(address account) public view override returns (uint256) {
-        return _balances[account];
-    }
-
-    function allowance(address holder, address spender) external view override returns (uint256) {
-        return _allowances[holder][spender];
-    }
+    function totalSupply() external view override returns (uint256) {return _totalSupply;}
+    function decimals() external pure returns (uint8) {return _decimals;}
+    function symbol() external pure returns (string memory) {return _symbol;}
+    function name() external pure returns (string memory) {return _name;}
+    function getOwner() external view returns (address) {return owner();}
+    function balanceOf(address account) public view override returns (uint256) {return _balances[account];}
+    function allowance(address holder, address spender) external view override returns (uint256) {return _allowances[holder][spender];}
 
     function checkRatio(uint256 ratio, uint256 accuracy) public view returns (bool) {
         return showBacking(accuracy) > ratio;
@@ -148,9 +124,7 @@ contract Navaix is Ownable2Step, IERC20 {
     }
 
     function _transferFrom(address sender, address recipient, uint256 amount) internal returns (bool) {
-        if (inSwap) {
-            return _basicTransfer(sender, recipient, amount);
-        }
+        if (inSwap) {return _basicTransfer(sender, recipient, amount);}
 
         if (_shouldSwapBack()) {
             _swapBack();
@@ -158,8 +132,7 @@ contract Navaix is Ownable2Step, IERC20 {
 
         _balances[sender] = _balances[sender].sub(amount, "Insufficient Balance");
 
-        uint256 amountReceived =
-            (isExemptFromFees[sender] || isExemptFromFees[recipient]) ? amount : _takeFee(sender, amount, recipient);
+        uint256 amountReceived = (isExemptFromFees[sender] || isExemptFromFees[recipient]) ? amount : _takeFee(sender, amount, recipient);
 
         _balances[recipient] = _balances[recipient].add(amountReceived);
 
@@ -195,7 +168,10 @@ contract Navaix is Ownable2Step, IERC20 {
     }
 
     function _shouldSwapBack() internal view returns (bool) {
-        return msg.sender != pair && !inSwap && swapEnabled && _balances[address(this)] >= swapThreshold;
+        return msg.sender != pair
+            && !inSwap
+            && swapEnabled
+            && _balances[address(this)] >= swapThreshold;
     }
 
     function _swapBack() internal swapping {
@@ -209,7 +185,13 @@ contract Navaix is Ownable2Step, IERC20 {
 
         uint256 balanceBefore = address(this).balance;
 
-        router.swapExactTokensForETHSupportingFeeOnTransferTokens(amountToSwap, 0, path, address(this), block.timestamp);
+        router.swapExactTokensForETHSupportingFeeOnTransferTokens(
+            amountToSwap,
+            0,
+            path,
+            address(this),
+            block.timestamp
+        );
 
         uint256 amountETH = address(this).balance.sub(balanceBefore);
 
@@ -226,7 +208,12 @@ contract Navaix is Ownable2Step, IERC20 {
 
         if (amountToLiquify > 0) {
             router.addLiquidityETH{value: amountETHLiquidity}(
-                address(this), amountToLiquify, 0, 0, autoLiquidityReceiver, block.timestamp
+                address(this),
+                amountToLiquify,
+                0,
+                0,
+                autoLiquidityReceiver,
+                block.timestamp
             );
             emit AutoAddLiquify(amountETHLiquidity, amountToLiquify);
         }
@@ -241,27 +228,20 @@ contract Navaix is Ownable2Step, IERC20 {
         return IERC20(tokenAddress).transfer(autoLiquidityReceiver, tokens);
     }
 
-    function setFeesBuySellTransfer(uint256 _percentOnBuy, uint256 _percentOnSell, uint256 _walletTransfer)
-        external
-        onlyOwner
-    {
+    function setFeesBuySellTransfer(uint256 _percentOnBuy, uint256 _percentOnSell, uint256 _walletTransfer) external onlyOwner {
         sellPercent = _percentOnSell;
         buyPercent = _percentOnBuy;
         transferPercent = _walletTransfer;
     }
 
     function _setFees() internal {
-        emit UpdateTax(
-            uint8(totalFee.mul(buyPercent).div(feeDenominator)),
+        emit UpdateTax(uint8(totalFee.mul(buyPercent).div(feeDenominator)),
             uint8(totalFee.mul(sellPercent).div(feeDenominator)),
             uint8(totalFee.mul(transferPercent).div(feeDenominator))
         );
     }
 
-    function setParameters(uint256 _liquidityFee, uint256 _teamFee, uint256 _holderFee, uint256 _feeDenominator)
-        external
-        onlyOwner
-    {
+    function setParameters(uint256 _liquidityFee, uint256 _teamFee, uint256 _holderFee, uint256 _feeDenominator) external onlyOwner {
         liquidityFee = _liquidityFee;
         teamFee = _teamFee;
         holderFee = _holderFee;
@@ -271,10 +251,7 @@ contract Navaix is Ownable2Step, IERC20 {
         _setFees();
     }
 
-    function setWallets(address _autoLiquidityReceiver, address _teamFeeReceiver, address _holderFeeReceiver)
-        external
-        onlyOwner
-    {
+    function setWallets(address _autoLiquidityReceiver, address _teamFeeReceiver, address _holderFeeReceiver) external onlyOwner {
         autoLiquidityReceiver = _autoLiquidityReceiver;
         teamFeeReceiver = _teamFeeReceiver;
         holderFeeReceiver = _holderFeeReceiver;
