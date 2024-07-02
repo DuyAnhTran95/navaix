@@ -10,14 +10,14 @@ import {IUniFactory} from "./interfaces/IUniFactory.sol";
 contract Navaix is Ownable2Step, IERC20 {
     using SafeMath for uint256;
 
-    uint256 _totalSupply = 100_000_000 * 10 ** _decimals;
+    uint256 _totalSupply = 33_000_000 * 10 ** _decimals;
     address WETH;
     address constant DEAD = 0x000000000000000000000000000000000000dEaD;
     address constant ZERO = 0x0000000000000000000000000000000000000000;
 
     // Token info
     string constant _name = "Navaix";
-    string constant _symbol = "NVX";
+    string constant _symbol = "NAV";
     uint8 constant _decimals = 18;
 
     uint256 setRatio = 30;
